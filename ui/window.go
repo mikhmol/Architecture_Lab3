@@ -25,8 +25,9 @@ type Visualizer struct {
 	tx   chan screen.Texture
 	done chan struct{}
 
-	sz  size.Event
-	pos image.Rectangle
+	sz       size.Event
+	pos      image.Rectangle
+	shapePos image.Point
 }
 
 func (pw *Visualizer) Main() {
@@ -34,6 +35,7 @@ func (pw *Visualizer) Main() {
 	pw.done = make(chan struct{})
 	pw.pos.Max.X = 200
 	pw.pos.Max.Y = 200
+	pw.shapePos = image.Point{X: 400, Y: 350}
 	driver.Main(pw.run)
 }
 
@@ -43,7 +45,9 @@ func (pw *Visualizer) Update(t screen.Texture) {
 
 func (pw *Visualizer) run(s screen.Screen) {
 	w, err := s.NewWindow(&screen.NewWindowOptions{
-		Title: pw.Title,
+		Title:  pw.Title,
+		Width:  800,
+		Height: 800,
 	})
 	if err != nil {
 		log.Fatal("Failed to initialize the app window:", err)
@@ -134,6 +138,14 @@ func (pw *Visualizer) drawDefaultUI() {
 	pw.w.Fill(pw.sz.Bounds(), color.Black, draw.Src) // Фон.
 
 	// TODO: Змінити колір фону та додати відображення фігури у вашому варіанті.
+
+	x, y := pw.shapePos.X, pw.shapePos.Y
+
+	height, width := 400, 150
+	yellow := color.RGBA{255, 255, 0, 255}
+
+	pw.w.Fill(image.Rect(x-width/2, y-height/2, x+width/2, y+height/2), yellow, draw.Src)
+	pw.w.Fill(image.Rect(x-height/2, y-width/2, x+height/2, y+width/2), yellow, draw.Src)
 
 	// Малювання білої рамки.
 	for _, br := range imageutil.Border(pw.sz.Bounds(), 10) {
