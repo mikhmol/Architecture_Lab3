@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -120,6 +121,15 @@ func (pw *Visualizer) handleEvent(e any, t screen.Texture) {
 	case mouse.Event:
 		if t == nil {
 			// TODO: Реалізувати реакцію на натискання кнопки миші.
+			if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirPress {
+				pw.shapePos = image.Point{
+					X: int(e.X),
+					Y: int(e.Y),
+				}
+
+				pw.w.Send(paint.Event{})
+				fmt.Println("msX msY :", e.X, e.Y)
+			}
 		}
 
 	case paint.Event:
