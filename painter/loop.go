@@ -19,85 +19,82 @@ type Loop struct {
 	next screen.Texture // текстура, яка зараз формується
 	prev screen.Texture // текстура, яка була відправленя останнього разу у Receiver
 
-	mq messageQueue
-
-	stop    chan struct{}
-	stopReq bool
+	Mq      MessageQueue
+	done    chan struct{}
+	stopped bool
 }
 
 var size = image.Pt(800, 800)
 
-// Start запускає цикл подій. Цей метод потрібно запустити до того, як викликати на ньому будь-які інші методи.
-func (l *Loop) Start(s screen.Screen) {
-	l.next, _ = s.NewTexture(size)
-	l.prev, _ = s.NewTexture(size)
+func (loop *Loop) Start(s screen.Screen) {
+	loop.next, _ = s.NewTexture(size)
+	loop.prev, _ = s.NewTexture(size)
 
-	l.stop = make(chan struct{})
+	loop.done = make(chan struct{})
 
 	go func() {
-		for !l.stopReq || !l.mq.empty() {
-			op := l.mq.pull()
-			if update := op.Do(l.next); update {
-				l.Receiver.Update(l.next)
-				l.next, l.prev = l.prev, l.next
+		for !loop.stopped || !loop.Mq.isEmpty() {
+			op := loop.Mq.Pull()
+			update := op.Do(loop.next)
+			if update {
+				loop.Receiver.Update(loop.next)
+				loop.next, loop.prev = loop.prev, loop.next
 			}
 		}
-		close(l.stop)
+		close(loop.done)
 	}()
 }
 
-// Post додає нову операцію у внутрішню чергу.
-func (l *Loop) Post(op Operation) {
-	l.mq.push(op)
+func (loop *Loop) Post(op Operation) {
+	loop.Mq.Push(op)
 }
 
-// StopAndWait сигналізує про необхідність завершити цикл та блокується до моменту його повної зупинки.
-func (l *Loop) StopAndWait() {
-	l.Post(OperationFunc(func(screen.Texture) {
-		l.stopReq = true
+func (loop *Loop) StopAndWait() {
+	loop.Post(OperationFunc(func(t screen.Texture) {
+		loop.stopped = true
 	}))
-	l.stopReq = true
-	<-l.stop
+	loop.stopped = true
+	<-loop.done
 }
 
-type messageQueue struct {
-	ops     []Operation
-	mu      sync.Mutex
-	blocked chan struct{}
+type MessageQueue struct {
+	Operations []Operation
+	mu         sync.Mutex
+	blocked    chan struct{}
 }
 
-func (mq *messageQueue) push(op Operation) {
-	mq.mu.Lock()
-	defer mq.mu.Unlock()
+func (Mq *MessageQueue) Push(op Operation) {
+	Mq.mu.Lock()
+	defer Mq.mu.Unlock()
 
-	mq.ops = append(mq.ops, op)
+	Mq.Operations = append(Mq.Operations, op)
 
-	if mq.blocked != nil {
-		close(mq.blocked)
-		mq.blocked = nil
+	if Mq.blocked != nil {
+		close(Mq.blocked)
+		Mq.blocked = nil
 	}
 }
 
-func (mq *messageQueue) pull() Operation {
-	mq.mu.Lock()
-	defer mq.mu.Unlock()
+func (Mq *MessageQueue) Pull() Operation {
+	Mq.mu.Lock()
+	defer Mq.mu.Unlock()
 
-	for len(mq.ops) == 0 {
-		mq.blocked = make(chan struct{})
-		mq.mu.Unlock()
-		<-mq.blocked
-		mq.mu.Lock()
+	for len(Mq.Operations) == 0 {
+		Mq.blocked = make(chan struct{})
+		Mq.mu.Unlock()
+		<-Mq.blocked
+		Mq.mu.Lock()
 	}
 
-	op := mq.ops[0]
-	mq.ops[0] = nil
-	mq.ops = mq.ops[1:]
+	op := Mq.Operations[0]
+	Mq.Operations[0] = nil
+	Mq.Operations = Mq.Operations[1:]
 	return op
 }
 
-func (mq *messageQueue) empty() bool {
-	mq.mu.Lock()
-	defer mq.mu.Unlock()
+func (Mq *MessageQueue) isEmpty() bool {
+	Mq.mu.Lock()
+	defer Mq.mu.Unlock()
 
-	return len(mq.ops) == 0
+	return len(Mq.Operations) == 0
 }
